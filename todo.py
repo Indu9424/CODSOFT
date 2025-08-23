@@ -1,7 +1,7 @@
 tasks = []
 
 def show_menu():
-    print("\n--- TO-DO LIST ---")
+    print("\n ** TO-DO LIST **")
     print("1. Add Task")
     print("2. View Tasks")
     print("3. Update Task")

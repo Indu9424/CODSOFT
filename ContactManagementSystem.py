@@ -1,23 +1,79 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog
 import json
 
 contacts = []
-current_index = None  
-FILE_NAME = "contacts.json"
+current_index = None
+FILE_NAME = None
+LOGGED_IN_USER = None
+USERS_FILE = "users.json"
+
+# ---------------- User Authentication ----------------
+def load_users():
+    """Load users from users.json"""
+    try:
+        with open(USERS_FILE, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        # If file doesn't exist, create empty dict
+        with open(USERS_FILE, "w") as f:
+            json.dump({}, f)
+        return {}
+
+def save_users(users):
+    """Save users back to users.json"""
+    with open(USERS_FILE, "w") as f:
+        json.dump(users, f)
+
+def user_login():
+    global FILE_NAME, LOGGED_IN_USER
+    users = load_users()
+
+    username = simpledialog.askstring("Login", "Enter your username:")
+    if not username:
+        messagebox.showwarning("Login Required", "Username is required!")
+        root.destroy()
+        return
+
+    if username in users:
+        # Existing user → ask password
+        password = simpledialog.askstring("Login", "Enter your password:", show="*")
+        if password != users[username]:
+            messagebox.showerror("Login Failed", "Incorrect password!")
+            root.destroy()
+            return
+        else:
+            LOGGED_IN_USER = username
+            FILE_NAME = f"contacts_{username}.json"
+            load_contacts()
+            messagebox.showinfo("Welcome", f"Welcome back, {username}!")
+    else:
+        # New user → register
+        password = simpledialog.askstring("Register", "Set a password:", show="*")
+        if not password:
+            messagebox.showwarning("Registration Failed", "Password is required!")
+            root.destroy()
+            return
+        users[username] = password
+        save_users(users)
+        LOGGED_IN_USER = username
+        FILE_NAME = f"contacts_{username}.json"
+        save_contacts()  # Create empty file
+        messagebox.showinfo("Account Created", f"User {username} registered successfully!")
 
 # ---------------- Data Persistence ----------------
 def save_contacts():
-    with open(FILE_NAME, "w") as f:
-        json.dump(contacts, f)
+    if FILE_NAME:
+        with open(FILE_NAME, "w") as f:
+            json.dump(contacts, f)
 
 def load_contacts():
     global contacts
     try:
         with open(FILE_NAME, "r") as f:
-            contacts[:] = json.load(f)   # load into list
+            contacts[:] = json.load(f)
     except FileNotFoundError:
-        contacts = []   # if file doesn't exist, start empty
+        contacts = []
 
 # ---------------- Core Functions ----------------
 def add_contact():
@@ -28,7 +84,6 @@ def add_contact():
     address = address_entry.get().strip()
 
     if name and phone:
-        # Duplicate check (only when adding new)
         if current_index is None and any(c["phone"] == phone for c in contacts):
             messagebox.showwarning("Duplicate", "This phone number already exists!")
             return
@@ -44,7 +99,7 @@ def add_contact():
 
         clear_entries()
         show_all_contacts()
-        save_contacts()  # Save every time
+        save_contacts()
     else:
         messagebox.showwarning("Input Error", "Name and Phone are required!")
 
@@ -92,7 +147,7 @@ def delete_by_name():
         return
 
     deleted = False
-    for c in contacts[:]:  # safe copy
+    for c in contacts[:]:
         if query == c["name"].lower() or query == c["phone"]:
             contacts.remove(c)
             deleted = True
@@ -138,12 +193,16 @@ def show_details(event):
     if selected:
         index = selected[0]
         c = contacts[index]
-        messagebox.showinfo("Contact Details", f"Name: {c['name']}\nPhone: {c['phone']}\nEmail: {c['email']}\nAddress: {c['address']}")
+        messagebox.showinfo("Contact Details",
+                            f"Name: {c['name']}\nPhone: {c['phone']}\nEmail: {c['email']}\nAddress: {c['address']}")
 
 # ---------------- GUI ----------------
 root = tk.Tk()
 root.title("Contact Management System")
 root.geometry("470x700")
+
+# Login first
+root.after(100, user_login)
 
 # Entry Fields
 tk.Label(root, text="Name:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
@@ -204,9 +263,6 @@ contact_list.bind("<Double-1>", show_details)
 # Hide initially
 contact_frame.grid(row=12, column=0, columnspan=2, padx=5, pady=10)
 contact_frame.grid_remove()
-
-# Load saved contacts at startup
-load_contacts()
 
 # Save contacts on close
 root.protocol("WM_DELETE_WINDOW", lambda: (save_contacts(), root.destroy()))
